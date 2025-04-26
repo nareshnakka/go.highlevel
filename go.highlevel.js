@@ -477,23 +477,114 @@ export function dashboardPage() {
     });
     console.log('voice-call recents : ' + response.status);
 
-
-    response = http.post(`https://backend.leadconnectorhq.com/contacts/search/2`,
-        JSON.stringify({ "filters": [], "locationId": locationId, "page": 1, "pageLimit": 20, "sort": [] }),
-        { headers: createApiHeaders('', idToken) }
+    response = http.post(
+        'https://backend.leadconnectorhq.com/contacts/search/2',
+        JSON.stringify({
+            filters: [],
+            locationId: `${locationId}`,
+            page: 1,
+            pageLimit: 20,
+            sort: []
+        }),
+        {
+            headers: {
+                channel: 'APP',
+                'content-type': 'application/json',
+                origin: 'https://app.gohighlevel.com',
+                source: 'WEB_USER',
+                'token-id': `${idToken}`,
+                version: '2021-04-15'
+            }
+        }
     );
     check(response, {
         'contacts search status is 200': (r) => r.status === 200,
     });
     console.log('contacts search : ' + response.status);
 
-    response = http.get(`https://backend.leadconnectorhq.com/reporting/dashboards/${defaultDashboardId}?locationId=${locationId}`, {
+    response = http.get(`https://backend.leadconnectorhq.com/saas-billing-v2/billing-config/COMPANY/${companyId}/conversationAI`, {
         headers: createApiHeaders(authToken, idToken)
     });
     check(response, {
-        'specific dashboard status is 200': (r) => r.status === 200,
+        'conversationAI billing-config (specific company) status is 200': (r) => r.status === 200,
     });
-    console.log('specific dashboard : ' + response.status);
+    console.log('conversationAI billing-config (specific company) : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/reselling/configuration/location/${locationId}/Prospecting`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'Prospecting configuration status is 200': (r) => r.status === 200,
+    });
+    console.log('Prospecting configuration : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/reporting/dashboards?locationId=${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'specific dashboards status is 200': (r) => r.status === 200,
+    });
+    console.log('specific dashboards : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/wordpress/payments/location/${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'WordPress payments location status is 200': (r) => r.status === 200,
+    });
+    console.log('WordPress payments location : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/reporting/dashboards/widgets-definitions?locationId=${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'widgets-definitions status is 200': (r) => r.status === 200,
+    });
+    console.log('widgets-definitions : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/opportunities/pipelines/?locationId=${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'opportunities pipelines status is 200': (r) => r.status === 200,
+    });
+    console.log('opportunities pipelines : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/reporting/dashboards/custom?locationId=${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'custom dashboards status is 200': (r) => r.status === 200,
+    });
+    console.log('custom dashboards : ' + response.status);
+
+    response = http.get(`https://backend.leadconnectorhq.com/reporting/dashboards/${defaultDashboardId}/user/quick-filters?locationId=${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'quick-filters status is 200': (r) => r.status === 200,
+    });
+    console.log('quick-filters : ' + response.status);
+
+    response = http.post(
+        `https://backend.leadconnectorhq.com/locations/${locationId}/tasks/search`,
+        JSON.stringify({
+            limit: 10,
+            skip: 0,
+            assignedTo: [`${userId}`],
+            completed: false,
+            sortKey: "dueDate",
+            sortDirection: 1,
+            count: true
+        }),
+        {
+            headers: createApiHeaders(authToken, idToken)
+        }
+    );
+    check(response, {
+        'tasks search status is 200': (r) => r.status === 200,
+    });
+    console.log('tasks search : ' + response.status);
 
 }
 
