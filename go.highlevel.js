@@ -64,18 +64,18 @@ export function loginPage() {
         subdomain: 'app',
         email: loginData.email,
         password: loginData.password,
-        deviceId: 'e63484fe-e2c4-4ee4-a250-c243eb87fb66',
+        deviceId: 'f429b162-9fd5-460f-b619-f0b5f330e1a6',
         deviceType: 'web',
         deviceName: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
     });
 
 
-    const loginRes = http.post(authUrl, payload, { headers: loginHeaders });
+    const loginRes = http.post(authUrl, { headers: loginHeaders }, payload);
     check(loginRes, {
         'Login POST request status is 200': (r) => r.status === 201,
     });
 
-    console.log('Login Response : ' + loginRes.body);
+    console.log('Login Response : ' + payload);
     if (loginRes.json('authToken')) {
         authToken = loginRes.json('authToken');
         userId = loginRes.json('userId');
