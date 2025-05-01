@@ -10,6 +10,20 @@ import {
 } from './commons.js';
 import { SharedArray } from 'k6/data';
 
+// Initialize SharedArrays in the init context
+const loginCsvData = new SharedArray('loginData', function () {
+    return open('./loginData.csv').split('\n').map(line => {
+        const [email, password] = line.split(',');
+        return { email, password };
+    });
+});
+
+const contactsCsvData = new SharedArray('contacts', function () {
+    return open('./contacts.csv').split('\n').map(line => {
+        const [firstName, lastName, email] = line.split(',');
+        return { firstName, lastName, email };
+    });
+});
 
 let authToken = null;
 let userId = null;
@@ -19,6 +33,7 @@ let refreshToken = null;
 let traceId = null;
 let defaultDashboardId = null;
 let contactId;
+let locationId;
 
 let idToken = null;
 
@@ -39,19 +54,10 @@ export function loginPage() {
     check(authRes, {
         'Auth OPTIONS request status is 200': (r) => r.status === 204,
     });
-    console.log('Auth OPTIONS : ' + authRes.status);
 
-    // Login POST request
-    // Load data from CSV
-    const csvData = new SharedArray('loginData', function () {
-        return open('./loginData.csv').split('\n').map(line => {
-            const [email, password] = line.split(',');
-            return { email, password };
-        });
-    });
 
-    // Get unique data for each iteration
-    const loginData = csvData[__ITER % csvData.length];
+    // Get unique data for each iteration from the pre-initialized SharedArray
+    const loginData = loginCsvData[__ITER % loginCsvData.length];
 
     const payload = JSON.stringify({
         domain: 'app.gohighlevel.com',
@@ -63,11 +69,13 @@ export function loginPage() {
         deviceName: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
     });
 
+
     const loginRes = http.post(authUrl, payload, { headers: loginHeaders });
     check(loginRes, {
         'Login POST request status is 200': (r) => r.status === 201,
     });
-    console.log('Login Response : ' + loginRes.status);
+
+    console.log('Login Response : ' + loginRes.body);
     if (loginRes.json('authToken')) {
         authToken = loginRes.json('authToken');
         userId = loginRes.json('userId');
@@ -93,7 +101,6 @@ export function loginPage() {
 
 // Dashboard page request
 export function dashboardPage() {
-    let locationId = null;
     let response = http.post("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyB_w3vXmsI7WeQtrIOkjR6xTRVN5uOieiE",
         JSON.stringify({ "idToken": `${idToken}` }),
         { headers: lookupHeaders() }
@@ -642,16 +649,9 @@ export function contactsPage() {
 
 export function createContact() {
     const url = 'https://backend.leadconnectorhq.com/contacts/?version=14-05-22';
-    // Load data from CSV
-    const csvData = new SharedArray('contacts', function () {
-        return open('./contacts.csv').split('\n').map(line => {
-            const [firstName, lastName, email] = line.split(',');
-            return { firstName, lastName, email };
-        });
-    });
 
-    // Get unique data for each iteration
-    const contact = csvData[__ITER % csvData.length];
+    // Get unique data for each iteration from the pre-initialized SharedArray
+    const contact = contactsCsvData[__ITER % contactsCsvData.length];
 
     const payload = JSON.stringify({
         tags: [],
@@ -687,7 +687,8 @@ export function createContact() {
     });
 
     if (response.json('id')) {
-        contactId = response.contact?.id;
+        const responseData = response.json();
+        contactId = responseData.contact ? responseData.contact.id : null;
         console.log('Created Contact ID: ' + contactId);
     }
 
@@ -777,7 +778,7 @@ export default function () {
 }
 
 
-export const options = {
+/*export const options = {
     scenarios: {
         users: {
             executor: 'ramping-vus',
@@ -806,4 +807,10 @@ export const options = {
         'checks{name:updateContact status is 200}': ['rate>0.98'],
         'checks{name:bulkDeleteRequest status is 200}': ['rate>0.98']
     }
+};
+*/
+
+export const options = {
+    vus: 1, // 1 virtual user
+    iterations: 1, // 1 iteration
 };
