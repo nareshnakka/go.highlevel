@@ -8,11 +8,8 @@ import {
     lookupHeaders,
     createApiHeaders
 } from './commons.js';
+import { SharedArray } from 'k6/data';
 
-export const options = {
-    vus: 1,
-    iterations: 1,
-};
 
 let authToken = null;
 let userId = null;
@@ -21,6 +18,7 @@ let companyId = null;
 let refreshToken = null;
 let traceId = null;
 let defaultDashboardId = null;
+let contactId;
 
 let idToken = null;
 
@@ -44,11 +42,22 @@ export function loginPage() {
     console.log('Auth OPTIONS : ' + authRes.status);
 
     // Login POST request
+    // Load data from CSV
+    const csvData = new SharedArray('loginData', function () {
+        return open('./loginData.csv').split('\n').map(line => {
+            const [email, password] = line.split(',');
+            return { email, password };
+        });
+    });
+
+    // Get unique data for each iteration
+    const loginData = csvData[__ITER % csvData.length];
+
     const payload = JSON.stringify({
         domain: 'app.gohighlevel.com',
         subdomain: 'app',
-        email: 'nareshnakka@outlook.com',
-        password: 'Naresh@GHL1',
+        email: loginData.email,
+        password: loginData.password,
         deviceId: 'e63484fe-e2c4-4ee4-a250-c243eb87fb66',
         deviceType: 'web',
         deviceName: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
@@ -588,14 +597,213 @@ export function dashboardPage() {
 
 }
 
+export function contactsPage() {
+    const response = http.get(`https://backend.leadconnectorhq.com/saas-api/location-metadata/${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(response, {
+        'location-metadata status is 200': (r) => r.status === 200,
+    });
+    console.log('location-metadata : ' + response.status);
+
+    const contactsResponse = http.get(`https://backend.leadconnectorhq.com/contacts/?locationId=${locationId}`, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+    check(contactsResponse, {
+        'contacts status is 200': (r) => r.status === 200,
+    });
+    console.log('contacts : ' + contactsResponse.status);
+
+    response = http.post(
+        'https://backend.leadconnectorhq.com/contacts/search/2',
+        JSON.stringify({
+            filters: [],
+            locationId: `${locationId}`,
+            page: 1,
+            pageLimit: 20,
+            sort: []
+        }),
+        {
+            headers: {
+                channel: 'APP',
+                'content-type': 'application/json',
+                origin: 'https://app.gohighlevel.com',
+                source: 'WEB_USER',
+                'token-id': `${idToken}`,
+                version: '2021-04-15'
+            }
+        }
+    );
+    check(response, {
+        'contacts search status is 200': (r) => r.status === 200,
+    });
+    console.log('contacts search : ' + response.status);
+}
+
+export function createContact() {
+    const url = 'https://backend.leadconnectorhq.com/contacts/?version=14-05-22';
+    // Load data from CSV
+    const csvData = new SharedArray('contacts', function () {
+        return open('./contacts.csv').split('\n').map(line => {
+            const [firstName, lastName, email] = line.split(',');
+            return { firstName, lastName, email };
+        });
+    });
+
+    // Get unique data for each iteration
+    const contact = csvData[__ITER % csvData.length];
+
+    const payload = JSON.stringify({
+        tags: [],
+        customFields: [],
+        type: "lead",
+        locationId: `${locationId}`,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+        bounceEmail: false,
+        unsubscribeEmail: false,
+        timezone: null,
+        dnd: false,
+        additionalEmails: [],
+        additionalPhones: [],
+        internalSource: {
+            type: "manual_addition",
+            id: "KBJw7x1uRsnk8CaPIC3c",
+            userName: "Naresh n"
+        },
+        attributionSource: {
+            sessionSource: "CRM UI",
+            medium: "manual",
+            mediumId: null
+        },
+        dirty: true,
+        skipTrigger: false,
+        validateEmail: false
+    });
+
+    const response = http.post(url, payload, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+
+    if (response.json('id')) {
+        contactId = response.contact?.id;
+        console.log('Created Contact ID: ' + contactId);
+    }
+
+    check(response, {
+        'createContact status is 200': (r) => r.status === 200,
+    })
+
+    console.log('createContact : ' + response.status);
+
+}
+
+export function updateContact() {
+    const url = `https://backend.leadconnectorhq.com/contacts/${contactId}?version=14-05-22`;
+
+    // Generate a unique phone number
+    const uniquePhone = `+91${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+
+    const payload = JSON.stringify({
+        phone: uniquePhone,
+        customFields: [],
+        dirty: true,
+        skipTrigger: false
+    });
+
+    const response = http.post(url, payload, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+
+    check(response, {
+        'updateContact status is 200': (r) => r.status === 200,
+    });
+
+    console.log('updateContact : ' + response.status);
+    console.log('Updated Phone : ' + uniquePhone);
+}
+
+export function deleteContact() {
+
+}
+export function bulkDeleteRequest() {
+    const url = 'https://services.leadconnectorhq.com/bulk-actions/request';
+    const currentTime = new Date().toISOString().replace(/[-:.]/g, '_');
+    const payload = JSON.stringify({
+        bulkActionType: "bulk-delete-v2",
+        title: `Bulk_Delete_${currentTime}`,
+        scheduleType: "NOW",
+        locationId: locationId,
+        opSpecs: {
+            opType: "bulk-delete-v2"
+        },
+        documentSource: "search",
+        documentIds: ["" + contactId + ""]
+    });
+
+    const response = http.post(url, payload, {
+        headers: createApiHeaders(authToken, idToken)
+    });
+
+    check(response, {
+        'bulkDeleteRequest status is 200': (r) => r.status === 200,
+    });
+
+    console.log('bulkDeleteRequest : ' + response.status);
+}
 // Main test scenario
+function randomSleep(min = 1, max = 3) {
+    sleep(Math.random() * (max - min) + min);
+}
+
 export default function () {
     homePage();
-    sleep(1);
+    randomSleep();
 
     loginPage();
-    sleep(1);
+    randomSleep();
 
     dashboardPage();
-    sleep(2);
+    randomSleep();
+
+    contactsPage();
+    randomSleep();
+
+    createContact();
+    randomSleep();
+
+    deleteContact();
 }
+
+
+export const options = {
+    scenarios: {
+        users: {
+            executor: 'ramping-vus',
+            startVUs: 0,
+            stages: [
+                { duration: '3m', target: 200 }, // Ramp-up to 200 users in 3 minutes
+                { duration: '12m', target: 200 }, // Stay at 200 users for 12 minutes
+            ],
+            gracefulRampDown: '30s', // Graceful ramp-down period
+        },
+    },
+    thresholds: {
+        // Global thresholds
+        http_req_failed: ['rate<0.02'],  // Error rate must be less than 2%
+        http_req_duration: ['p(95)<800'], // 95% of requests must complete within 800ms
+
+        // Specific endpoints thresholds
+        'http_req_duration{url:https://backend.leadconnectorhq.com/campaigns}': ['p(95)<500'], // Campaigns API response time
+        'http_req_duration{url:https://backend.leadconnectorhq.com/messages/send}': ['p(95)<500'], // Message send API response time
+
+        // Response status checks
+        'checks{name:homePage status is 200}': ['rate>0.98'],
+        'checks{name:Login POST request status is 200}': ['rate>0.98'],
+        'checks{name:contacts search status is 200}': ['rate>0.98'],
+        'checks{name:createContact status is 200}': ['rate>0.98'],
+        'checks{name:updateContact status is 200}': ['rate>0.98'],
+        'checks{name:bulkDeleteRequest status is 200}': ['rate>0.98']
+    }
+};
